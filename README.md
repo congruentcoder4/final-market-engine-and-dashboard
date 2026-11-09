@@ -22,7 +22,8 @@ market-dashboard-clean/
 ├── backend/
 │   ├── market_data.py        # Gets and prepares market data
 │   ├── signals.py            # Calculates market signals like vix, breadth, etc
-│   └── regime_engine.py      # calculates market regime
+│   └── regime_engine.py     # calculates market regime
+        llm_engine.py
 ├── frontend/
 │   └── dashboard.py          # Streamlit display functions
 ├── tests/
@@ -32,6 +33,12 @@ market-dashboard-clean/
 ├── requirements.txt
 └── pyproject.toml
 ```
+
+
+How It Works
+Yahoo Finance data → normalized signals → weighted regime score → Streamlit dashboard → optional GPT-OSS interpretation
+
+
 ## What Each File Does
 
 ### `backend/market_data.py`
@@ -54,6 +61,11 @@ Standardizing the signals allows indicators with different underlying measuremen
 Combines the five signals using predefined weights to calculate the overall market regime.
 
 If a signal is unavailable, its weight is removed and the remaining weights are automatically normalized so that missing data does not disproportionately affect the final result.
+
+### 'backend/llm_engine.py' 
+Market snapshot and GPT-OSS analysis (simple implementation of running a local llm)
+
+The AI feature expects Ollama at http://localhost:11434. The dashboard's non-AI features do not require Ollama.
 
 ### `app.py`
 Coordinates the application by connecting data collection, signal calculation, regime classification, and the Streamlit interface.
@@ -78,8 +90,12 @@ pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
+
+
 ## Run the Tests
 
 ```bash
 pytest
 ```
+
+For research purposes only. Market data can be delayed / not financial advice.
