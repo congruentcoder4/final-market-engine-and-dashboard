@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import streamlit as st
 
+st.session_state.pop("ai_result", None)
+st.session_state.pop("ai_snapshot", None)
+
 from backend.market_data import MarketDataError, fetch_market_data, normalize_watchlist
 from backend.regime_engine import RegimeEngineError, calculate_market_regime
 from backend.signals import calculate_signals
@@ -22,7 +25,10 @@ from frontend.dashboard import (
     render_ticker_details,
     render_watchlist,
 )
-
+from backend.llm_engine import (
+    build_market_snapshot,
+    analyze_market,
+)
 
 DEFAULT_WATCHLIST = ["SPY", "QQQ", "NVDA", "TSLA", "RKLB"]
 
@@ -90,6 +96,60 @@ def main() -> None:
 
     # 4. Display the results.
     render_regime(regime, analysis)
+    
+    st.divider()
+    st.subheader("AI Market Analyst")
+
+    # Build snapshot from the actual calculated results
+    snapshot = build_market_snapshot(data, analysis, regime)
+
+    # Show exactly what will be sent to Ollama
+    with st.expander("Debug: Market data sent to Ollama"):
+        st.json(snapshot)
+
+    question = st.text_area(
+        "Ask GPT-OSS about the current market",
+        value=(
+            "Explain the current market regime. "
+            "Identify the strongest supporting and "
+            "conflicting signals."
+        ),
+    )
+
+    if st.button("Analyze with GPT-OSS"):
+        if not question.strip():
+            st.warning("Enter a question first.")
+        else:
+            with st.spinner("Analyzing market data..."):
+                try:
+                    result = analyze_market(snapshot, question)
+                except Exception as exc:
+                    st.error(f"Ollama request failed: {exc}")
+                else:
+                    st.session_state["ai_result"] = result
+                    st.session_state["ai_snapshot"] = snapshot
+
+    # Display the analysis with the matching input snapshot
+    if "ai_result" in st.session_state:
+        used_snapshot = st.session_state["ai_snapshot"]
+
+        st.markdown("### Python-verified market results")
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("Composite Score",
+                    used_snapshot["composite_score"])
+        col2.metric("Market Regime",
+                    used_snapshot["market_regime"])
+        col3.metric("Indicator Confidence",
+                    f'{used_snapshot["indicator_confidence"]:.1%}')
+
+        st.caption(
+            f'Snapshot fetched: {used_snapshot["fetched_at"]}'
+        )
+
+        st.markdown("### GPT-OSS Interpretation")
+        st.markdown(st.session_state["ai_result"])
+
     st.divider()
     render_futures(data)
     st.divider()
